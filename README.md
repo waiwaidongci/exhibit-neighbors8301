@@ -14,6 +14,7 @@
 4. 完整结果：真实算法摘要、专属诊断、全部CSV导出和可恢复失败态。
 5. 策展备选：分析师草案→负责人批准→阅读者下载批准快照。
 6. 审计：登录、来源修改、任务worker完成、业务说明批准等事件。
+7. 试展快问：以已完成研究的访客首推为标签，至多八件候选展品逐题发问，最坏情况余题数最少并显示上限；开卷锁定、中断续答、结果页推荐/提示/列冲突样本。
 
 ## 快速启动
 
@@ -57,6 +58,16 @@ Exhibition / VisitorRating / RecommendationRun / CuratorSelection 是核心实�
 
 实体贯穿 `backend/src/models`、`schemas`、`services`、`controllers`、`routes`，以及 `frontend/src/api/research.js`、`stores/research.js` 和 `pages`。`Source.key` 与 `(Record.source_id, reference)` 为自然键；来源改名不会修改已冻结任务输入。业务说明在创建时保存结果快照，批准后从该快照导出。
 
+## 试展快问（少问几题再推荐）
+
+- 标签：已完成研究中每位访客的首推（`result.recommendations` 按访客、预测降序、展品代码稳定取一）；访客评分四舍五入归入最近星级 1–5。
+- 相容：已答题上样本缺评可对应任意星级，或星级一致；候选题至多 8 件（默认按样本覆盖数自动选定，可手动调整）。
+- 发问策略：逐步选择让最坏情况余题数最少的一题（带记忆化与剪枝的极小化极大，超预算时贪心兜底并退化为安全上限），开卷与作答页均显示该上限。
+- 收束：相容样本标签一致即推荐；没有相容样本则提示；候选题问尽仍有分歧则列出冲突样本（访客、首推、各已答题星级）。
+- 开卷锁定研究版本（run_id）与候选题、标签样本快照；中断后恢复续答按锁定快照与已答记录确定性回到原分支。
+- 并发：`quiz_answers(session_id, exhibit)` 唯一约束保证并发答同一题只采纳一个答案（其余 409）；同题同答案重试幂等返回、不重复推进。
+- 接口：`GET/POST /quiz`、`POST /quiz/preview`、`GET /quiz/{id}`、`POST /quiz/{id}/answers`、`POST /quiz/{id}/interrupt`、`POST /quiz/{id}/resume`；页面支持开卷、续答和看结果。
+
 ## 算法与口径
 
 用户均值中心化相似邻居协同过滤与留一评分RMSE，全部计算位于 `backend/src/services/algorithm.py`，前端不拟合模型、不生成模拟结果。输入是冻结业务观察及参数，输出summary、专属诊断、逐行计算明细、seed与输入SHA256。CSV包含全部结果行；页面仅预览前30行。参数：
@@ -89,7 +100,7 @@ Exhibition / VisitorRating / RecommendationRun / CuratorSelection 是核心实�
 frontend/src/api, stores, types, components/common, hooks, pages, router, utils, constants
 backend/src/routes, controllers, services, models, schemas, middlewares, utils, constants, config
 backend/scripts/seed_demo.py
-backend/migrations/001_initial.sql
+backend/migrations/001_initial.sql, 002_quiz.sql
 ```
 
 本地后端：Python3.11虚拟环境安装 `backend/requirements.txt`，设置 `DATABASE_URL`、`REDIS_URL`、`ARTIFACT_DIR`，在backend目录运行 `uvicorn src.main:app --reload`；另开终端运行 `python -m src.worker`。原生前端无需编译，推荐以Compose Nginx访问，保证 `/api/` 代理。前端为Google Fonts双字体、oklch色板，离线字体回退serif；1280/768/390响应布局。
@@ -103,6 +114,6 @@ backend/migrations/001_initial.sql
 | DATABASE_URL / REDIS_URL | Compose内部连接，定义在compose的env锚点 |
 | ARTIFACT_DIR | `/artifacts`，后端worker共享 |
 
-共享枚举：`backend/src/constants/enums.py` 与 `frontend/src/constants/enums.js` 都定义 admin/analyst/viewer、queued/running/completed/failed、draft/approved。后端service检查对应字符串；README为全量值说明。共享前端组件table/status/chart/business跨总览、结果、配置与复核复用；actions hook和format utils负责交互/格式。后端errors与rate_limit是两个中间件。
+共享枚举：`backend/src/constants/enums.py` 与 `frontend/src/constants/enums.js` 都定义 admin/analyst/viewer、queued/running/completed/failed、draft/approved、answering/paused/completed。后端service检查对应字符串；README为全量值说明。共享前端组件table/status/chart/business跨总览、结果、配置、复核与快问复用；actions hook和format utils负责交互/格式。后端errors与rate_limit是两个中间件。
 
 测试及截图在批根 `test-artifacts/gb-0045/`，不混入源码。独立算法oracle、HTTP完整流程和真实Playwright浏览器流程见该目录 `TESTING.md`。License：MIT。

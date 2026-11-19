@@ -1,0 +1,4 @@
+-- SQLAlchemy metadata initializes tables idempotently.
+-- Quiz tables: quiz_sessions, quiz_answers.
+-- quiz_sessions 开卷时锁定研究版本(run_id)、候选题(questions)与标签样本(samples)；
+-- 唯一约束 quiz_answers(session_id, exhibit) 保证并发答同一题只采纳一个答案。

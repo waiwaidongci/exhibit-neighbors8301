@@ -5,3 +5,5 @@ class RunState(str,Enum):
     queued='queued'; running='running'; completed='completed'; failed='failed'
 class ReviewState(str,Enum):
     draft='draft'; approved='approved'
+class QuizState(str,Enum):
+    answering='answering'; paused='paused'; completed='completed'
